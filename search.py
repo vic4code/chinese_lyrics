@@ -1,5 +1,6 @@
 # -*-coding=utf-8 -*-
 
+import shutil
 import json
 import os
 from tqdm import tqdm
@@ -7,11 +8,12 @@ from youtubesearchpython import VideosSearch, ChannelsSearch
 from utils.download import download_audio_from_youtube, retrieve_audio
 import codecs
 import sys
+
 sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
 
 def search_songs_by_artist(datadir, metadata_dir, artist):
 
-    song_names = []
+    songs = []
 
     for root, dirs, files in os.walk(metadata_dir):
         for file in files:
@@ -21,9 +23,13 @@ def search_songs_by_artist(datadir, metadata_dir, artist):
                 for batch in batches:
                     if batch['artist'] == artist:
                         for song in batch['songs']:
-                            song_names.append(song['song_name'])
+                            songs.append({  
+                                            'artist_id': batch['artist_id'],
+                                            'song_name': song['song_name'],
+                                            'song_id': song['song_id']
+                            })
                                    
-                        return song_names
+                        return songs
 
 
 def search_lyrics_by_song(datadir, artist_id, song_id):
@@ -40,40 +46,20 @@ def search_lyrics_by_song(datadir, artist_id, song_id):
     for line in lines:
         if ":" not in line and "：" not in line and "(" not in line and "（" not in line \
             and "-" not in line and "-" not in line: 
-            lyrics.append(line)
+            lyrics.append(line.strip() + '\n')
 
     lyrics = "".join(lyrics)
 
     return lyrics
 
-
-if __name__ == "__main__":
-
-
-    datadir = 'data'
-    metadata_dir = 'metadata'
-    artist = '陳奕迅'
-    
-    song_names = search_songs_by_artist(datadir, metadata_dir, artist)
-    # print(len(song_names), song_names)
-
-    artist = '孫燕姿'
-    song_names = search_songs_by_artist(datadir, metadata_dir, artist)
-    # print(len(song_names), song_names)
-
-    
-    artist_id = 'pJEFcZhg'
-    song_id = 'zHysF7vl'
-    lyrics = search_lyrics_by_song(datadir, artist_id, song_id)
-    # print(lyrics)
-
+def download_audio(save_dir, artist):
 
     ## Download audio from youtube
     retrieved = []
     failed = []
-    save_dir = 'data/subset/audio'
-    artist = '陳奕迅'
-    song_names = search_songs_by_artist(datadir, metadata_dir, artist)
+    
+    songs = search_songs_by_artist(datadir, metadata_dir, artist)
+    song_names = [song['song_name'] for song in songs]
 
     for song_name in song_names:
 
@@ -84,11 +70,11 @@ if __name__ == "__main__":
 
         if success == True:
             retrieved.append(song_name)
-            print('Retrieval of ' + song_name + ' - ' + artist + ' is successful.')
+            print('Retrieval of ' + artist + ' - ' + song_name + ' is successful.')
 
         if success == False:
-            print('Could not retrieve the audio for ' + song_name +' due to search queries are not present in the video title!')
-            failed.append([song_name, artist])
+            print('Could not retrieve the audio for ' + song_name + ' due to search queries are not present in the video title!')
+            failed.append([artist, song_name])
             #print('\n')
             
     # Print Length
@@ -98,12 +84,49 @@ if __name__ == "__main__":
     print(failed)
     
     # Make up for the failed files
-    for song_name, artist in failed:
-        search_title = song_name + ' ' + artist
+    for artist, song_name in failed:
+        search_title = artist + ' ' + song_name
         videosSearch = VideosSearch(search_title, limit = 1)
-        download_audio_from_youtube(song_name, artist, videosSearch.result()['result'][0]['link'], save_dir)
-    
+        try:
+            download_audio_from_youtube(artist, song_name, videosSearch.result()['result'][0]['link'], save_dir)
+
+        except:
+            print('Search failed!')
+            
     # Print length after making up
     print(len(os.listdir(save_dir)))
+
+def restore_lyrics(datadir, metadata_dir, transcription_save_dir, artist):
+
+    songs = search_songs_by_artist(datadir, metadata_dir, artist)
+
+    for song in tqdm(songs):
+
+        artist_id, song_name, song_id = song['artist_id'], song['song_name'], song['song_id']
+        lyrics = search_lyrics_by_song(datadir, artist_id, song_id)
+
+        filename = (artist + "-" + song_name + ".txt").replace(":","").replace("/","")
+        filepath = os.path.join(transcription_save_dir, filename)
+
+        with codecs.open(filepath.replace(" ","").encode('utf-8'), 'w', encoding='utf-8') as f:
+            f.writelines(lyrics)
+
+
+if __name__ == "__main__":
+
+
+    datadir = 'data'
+    metadata_dir = 'metadata'
+    transcription_save_dir = 'data/subset/transcription'
+    artist = '王力宏'
+
+    # Restore lyrics
+    restore_lyrics(datadir, metadata_dir, transcription_save_dir, artist)
+
+    # Download youtube audio
+    save_dir = 'data/subset/audio'
+    download_audio(save_dir, artist)
+
+    
 
 

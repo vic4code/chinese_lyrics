@@ -22,7 +22,6 @@ def download_audio_from_youtube(artist, song_name, link, output_dir):
                                                    }],
                                 'outtmpl': os.path.join(output_dir, output_filename + '.mp3'),
                                 'quiet': False,
-                                'no-part':True
                             })
 
         audio_downloader.extract_info(link)
@@ -31,7 +30,7 @@ def download_audio_from_youtube(artist, song_name, link, output_dir):
         
         print('Download with python failed!')
         print('Trying with API on bash.')
-        cmd = f"""youtube-dl -o "{output_dir}/{output_filename}.mp3" --extract-audio -x --audio-format mp3 {link} --no-part"""
+        cmd = f"""youtube-dl -o "{output_dir}/{output_filename}.mp3" --extract-audio -x --audio-format mp3 {link}"""
         os.system(cmd.encode('utf-8'))
         
 
